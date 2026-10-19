@@ -86,7 +86,7 @@ Worker `arthur-vibe-game` → Domains & Routes → 添加 Route：
   - ❌ 不要写 `/game.js`，它会去找 `www.vibe-game.com/game.js`，那个请求归 vibe-game 的 Worker 处理，结果是 404。
 - **全站共用的文件用 `/` 开头**：唯一的例子是顶栏 `<script src="/nav.js" defer></script>`，它由 vibe-game 的 Worker 提供。
 - `localStorage` 的键名要加游戏前缀（例如 `arthur.save.v1`），因为整个域名下所有游戏共用一个 localStorage。
-  - 本游戏的最高分存在 `arthur.best`。
+  - 本游戏的最快通关时间存在 `arthur.bestTime`（秒）。
   - 例外：`vibe.lang` 是全站共用的语言设置，保持不变。
 
 ---
