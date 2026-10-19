@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typing Game</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #1e1e2e; color: #cdd6f4; display: grid; place-items: center; min-height: 100vh; margin: 0; }
+  main { text-align: center; padding: 16px; }
+  #word { font-size: 3rem; margin: 1rem 0; letter-spacing: 2px; }
+  #word .ok { color: #a6e3a1; }
+  input { font-size: 1.5rem; padding: .5rem; text-align: center; border-radius: 8px; border: 2px solid #585b70; background: #313244; color: inherit; max-width: 100%; }
+  button { font-size: 1.2rem; padding: .5rem 1.5rem; margin-top: 1rem; border-radius: 8px; border: 0; background: #89b4fa; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Typing Game</h1>
+  <p>Time: <b id="time">30</b>s · Score: <b id="score">0</b> · Best: <b id="best">0</b></p>
+  <div id="word" aria-live="polite">Press Start</div>
+  <input id="input" autocomplete="off" aria-label="Type the word" disabled>
+  <br><button id="start">Start</button>
+</main>
+<script>
+const WORDS = 'apple river cloud tiger planet music garden rocket silver dragon window orange pencil forest coffee yellow castle bridge summer winter ocean jungle wizard pirate'.split(' ');
+const $ = id => document.getElementById(id);
+let word = '', score = 0, left = 0, timer;
+let best = 0;
+try { best = +localStorage.getItem('typing.best') || 0; } catch {}
+$('best').textContent = best;
+
+function next() {
+  word = WORDS[Math.floor(Math.random() * WORDS.length)];
+  render('');
+}
+function render(typed) {
+  const n = word.startsWith(typed) ? typed.length : 0;
+  $('word').innerHTML = `<span class="ok">${word.slice(0, n)}</span>${word.slice(n)}`;
+}
+function end() {
+  clearInterval(timer);
+  $('input').disabled = true;
+  $('word').textContent = `Game over! Score: ${score}`;
+  if (score > best) {
+    best = score;
+    $('best').textContent = best;
+    try { localStorage.setItem('typing.best', best); } catch {}
+  }
+}
+$('start').onclick = () => {
+  score = 0; left = 30;
+  $('score').textContent = 0; $('time').textContent = 30;
+  $('input').disabled = false; $('input').value = ''; $('input').focus();
+  next();
+  clearInterval(timer);
+  timer = setInterval(() => { $('time').textContent = --left; if (left <= 0) end(); }, 1000);
+};
+$('input').oninput = e => {
+  const typed = e.target.value.trim().toLowerCase();
+  if (typed === word) { $('score').textContent = ++score; e.target.value = ''; next(); }
+  else render(typed);
+};
+</script>
+</body>
+</html>
