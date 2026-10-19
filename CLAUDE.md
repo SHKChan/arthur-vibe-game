@@ -1,4 +1,4 @@
-# arthur-vibe-game
+# typing-game
 
 www.vibe-game.com/arthur/ 的打字游戏。纯静态，`node tools/build.js` 打包到 `dist/arthur/`，推送到 main 由 Cloudflare Worker `arthur-vibe-game` 自动部署。
 

@@ -1,4 +1,4 @@
-# Cloudflare 部署约定（arthur-vibe-game）
+# Cloudflare 部署约定（typing-game）
 
 > 给负责这个仓库的 Agent 看。你要保证：**推送到 `main` 之后，Cloudflare 能自动构建、部署成功，游戏能在 `https://www.vibe-game.com/arthur/` 正常打开。**
 
@@ -10,7 +10,7 @@
 |---|---|---|---|
 | `SHKChan/vibe-game` | `vibe-game` | 自定义域名 `www.vibe-game.com`（兜底所有路径） | 总页面（游戏列表）+ 全站顶栏 `/nav.js` |
 | `SHKChan/life-sim` | `life-sim` | 路由 `www.vibe-game.com/life-sim*` | 浮生录 |
-| `SHKChan/arthur-vibe-game`（**本仓库**） | `arthur-vibe-game` | 路由 `www.vibe-game.com/arthur*` | 本游戏 |
+| `SHKChan/typing-game`（**本仓库**） | `arthur-vibe-game` | 路由 `www.vibe-game.com/arthur*` | 本游戏 |
 
 - **路由比自定义域名先匹配。** 访问 `/arthur/...` 会进入本仓库的 Worker，其他路径（`/`、`/nav.js`、`/life-sim/`）由别的 Worker 处理，互不影响。
 - 每个 Worker 都开着 **Workers Builds**，连的是自己的仓库，推送到 `main` 就会自动构建和部署。
