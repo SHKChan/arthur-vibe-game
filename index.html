@@ -26,6 +26,13 @@
   .flash { animation: flash .2s; }
   @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
   @keyframes flash { 50% { opacity: .2; } }
+  .actor { position: relative; }
+  .dmg { position: absolute; left: 50%; top: 10%; font-size: 1.8rem; text-shadow: 2px 2px 0 #000; pointer-events: none; animation: dmg .9s ease-out forwards; }
+  .slash { position: absolute; left: 50%; top: 40%; width: 140%; height: 6px; background: #fff; box-shadow: 0 0 8px #fff; pointer-events: none; animation: slash .25s ease-out forwards; }
+  .lunge { animation: lunge .25s; }
+  @keyframes dmg { from { transform: translate(-50%, 0) scale(1.4); opacity: 1; } to { transform: translate(-50%, -50px) scale(1); opacity: 0; } }
+  @keyframes slash { from { transform: translateX(-50%) rotate(-35deg) scaleX(0); opacity: 1; } to { transform: translateX(-50%) rotate(-35deg) scaleX(1); opacity: 0; } }
+  @keyframes lunge { 50% { transform: translateX(30px); } }
   form { display: flex; gap: 8px; width: 100%; }
   form button { padding: .4rem .8rem; }
   /* phones / keyboard open: shrink so field, word and input stay visible */
@@ -49,8 +56,8 @@
     <span>BEST <b id="best">--</b></span>
   </div>
   <div id="field">
-    <canvas id="hero" aria-label="hero"></canvas>
-    <div><canvas id="mon" aria-label="monster"></canvas><div id="hpbar"><div id="hpfill" style="width:100%"></div></div></div>
+    <div class="actor"><canvas id="hero" aria-label="hero"></canvas></div>
+    <div class="actor"><canvas id="mon" aria-label="monster"></canvas><div id="hpbar"><div id="hpfill" style="width:100%"></div></div></div>
   </div>
   <div id="word"></div>
   <form id="form">
@@ -94,6 +101,13 @@ try { best = parseFloat(localStorage.getItem('arthur.bestTime')) || null; } catc
 const showBest = () => $('best').textContent = best ? best.toFixed(1) + 's' : '--';
 showBest();
 
+// one-shot effect element over a sprite; removes itself when its animation ends
+function fx(el, cls, text = '', color = '#fff') {
+  const s = document.createElement('div');
+  s.className = cls; s.textContent = text; s.style.color = color;
+  s.onanimationend = () => s.remove();
+  el.parentNode.appendChild(s);
+}
 function bump(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 
 function loadStage() {
@@ -157,7 +171,10 @@ $('form').onsubmit = e => {
   if (!typed) return;
   if (typed === word) {
     hp -= word.length;
+    bump($('hero'), 'lunge');
     bump($('mon'), 'flash');
+    fx($('mon'), 'slash');
+    fx($('mon'), 'dmg', '-' + word.length, '#facc15');
     updateHp();
     $('msg').textContent = `${STAGES[stage].name} takes ${word.length} damage!`;
     if (hp <= 0) {
@@ -169,6 +186,7 @@ $('form').onsubmit = e => {
     hearts--;
     $('hearts').textContent = '♥'.repeat(hearts) + '♡'.repeat(3 - hearts);
     bump($('hero'), 'shake');
+    fx($('hero'), 'dmg', '-♥', '#f38ba8');
     $('msg').textContent = `Miss! The ${STAGES[stage].name} hits you!`;
     $('input').value = ''; done = ''; renderWord();
     if (hearts <= 0) return end(false);
