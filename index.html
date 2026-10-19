@@ -26,6 +26,17 @@
   .flash { animation: flash .2s; }
   @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
   @keyframes flash { 50% { opacity: .2; } }
+  form { display: flex; gap: 8px; width: 100%; }
+  form button { padding: .4rem .8rem; }
+  /* phones / keyboard open: shrink so field, word and input stay visible */
+  @media (max-height: 640px), (max-width: 480px) {
+    main { gap: 6px; padding: 8px 16px; }
+    .win { padding: 6px 10px; font-size: .9rem; }
+    #field { min-height: 0; padding: 6px 0; }
+    #hero { width: 64px; }
+    #mon { width: 80px; }
+    #word { font-size: 1.6rem; min-height: 2rem; }
+  }
 </style>
 <script src="/nav.js" defer></script>
 </head>
@@ -41,9 +52,12 @@
     <canvas id="hero" aria-label="hero"></canvas>
     <div><canvas id="mon" aria-label="monster"></canvas><div id="hpbar"><div id="hpfill" style="width:100%"></div></div></div>
   </div>
-  <div class="win" id="msg" aria-live="polite">A wild monster appears! Type to attack. Wrong key = lose a heart.</div>
   <div id="word"></div>
-  <input id="input" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Type the word" disabled>
+  <form id="form">
+    <input id="input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Type the word, then press Enter" disabled>
+    <button id="attack" disabled>⚔</button>
+  </form>
+  <div class="win" id="msg" aria-live="polite">Type the word and press Enter to attack. Wrong word = lose a heart.</div>
   <button id="start">Start</button>
 </main>
 <script>
@@ -105,7 +119,7 @@ function updateHp() { $('hpfill').style.width = 100 * hp / STAGES[stage].hp + '%
 function end(win) {
   playing = false;
   clearInterval(timer);
-  $('input').disabled = true;
+  $('input').disabled = $('attack').disabled = true;
   $('start').textContent = 'Play again';
   const t = (performance.now() - t0) / 1000;
   if (win) {
@@ -120,7 +134,7 @@ function end(win) {
 $('start').onclick = () => {
   stage = 0; hearts = 3; playing = true;
   $('hearts').textContent = '♥♥♥';
-  $('input').disabled = false;
+  $('input').disabled = $('attack').disabled = false;
   $('input').focus();
   loadStage();
   t0 = performance.now();
@@ -128,33 +142,42 @@ $('start').onclick = () => {
   timer = setInterval(() => $('time').textContent = ((performance.now() - t0) / 1000).toFixed(1), 100);
 };
 
-// compare whole value so it works with mobile keyboards too
+// live preview only: green while the typed text matches
 $('input').oninput = e => {
   if (!playing) return;
-  const typed = e.target.value.toLowerCase();
-  if (typed.length <= done.length) { e.target.value = done; return; } // ignore backspace
-  for (const ch of typed.slice(done.length)) {
-    if (ch === word[done.length]) {
-      done += ch; hp--;
-      bump($('mon'), 'flash');
-      updateHp();
-      if (hp <= 0) {
-        if (++stage >= STAGES.length) return end(true);
-        return loadStage();
-      }
-      if (done === word) return nextWord();
-    } else {
-      hearts--;
-      $('hearts').textContent = '♥'.repeat(hearts) + '♡'.repeat(3 - hearts);
-      bump($('hero'), 'shake');
-      $('msg').textContent = `Ouch! The ${STAGES[stage].name} hits you!`;
-      if (hearts <= 0) return end(false);
-      break;
-    }
-  }
-  e.target.value = done;
+  const typed = e.target.value.trim().toLowerCase();
+  done = word.startsWith(typed) ? typed : '';
   renderWord();
 };
+// Enter (or ⚔) submits the word: right = damage by word length, wrong = lose a heart
+$('form').onsubmit = e => {
+  e.preventDefault();
+  if (!playing) return;
+  const typed = $('input').value.trim().toLowerCase();
+  if (!typed) return;
+  if (typed === word) {
+    hp -= word.length;
+    bump($('mon'), 'flash');
+    updateHp();
+    $('msg').textContent = `${STAGES[stage].name} takes ${word.length} damage!`;
+    if (hp <= 0) {
+      if (++stage >= STAGES.length) return end(true);
+      return loadStage();
+    }
+    nextWord();
+  } else {
+    hearts--;
+    $('hearts').textContent = '♥'.repeat(hearts) + '♡'.repeat(3 - hearts);
+    bump($('hero'), 'shake');
+    $('msg').textContent = `Miss! The ${STAGES[stage].name} hits you!`;
+    $('input').value = ''; done = ''; renderWord();
+    if (hearts <= 0) return end(false);
+  }
+};
+// keyboard popping up shrinks the visual viewport: keep the input in view
+if (window.visualViewport) visualViewport.addEventListener('resize', () => {
+  if (document.activeElement === $('input')) $('input').scrollIntoView({ block: 'center' });
+});
 </script>
 </body>
 </html>
