@@ -19,6 +19,13 @@
   #hpfill { height: 100%; background: var(--hit); transition: width .15s; }
   #word { font-size: 2.2rem; letter-spacing: 3px; text-align: center; min-height: 2.6rem; }
   #word .ok { color: var(--ok); }
+  #tbar { height: 8px; width: 100%; border: 2px solid var(--fg); box-sizing: border-box; }
+  #tfill { height: 100%; background: var(--ok); }
+  #tfill.low { background: var(--hit); }
+  #badges { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; font-size: 1.4rem; }
+  #badges span { opacity: .2; filter: grayscale(1); }
+  #badges span.got { opacity: 1; filter: none; }
+  .boss #hpfill { background: #dc2626; }
   input { font: inherit; font-size: 1.4rem; padding: .4rem; text-align: center; border: 4px double var(--fg); border-radius: 8px; background: #000; color: var(--fg); width: 100%; box-sizing: border-box; }
   button { font: inherit; font-size: 1.2rem; padding: .5rem 1.5rem; border: 4px double var(--fg); border-radius: 8px; background: #000; color: var(--fg); cursor: pointer; }
   button:hover, button:focus-visible { background: var(--fg); color: #000; }
@@ -60,12 +67,14 @@
     <div class="actor"><canvas id="mon" aria-label="monster"></canvas><div id="hpbar"><div id="hpfill" style="width:100%"></div></div></div>
   </div>
   <div id="word"></div>
+  <div id="tbar" aria-hidden="true"><div id="tfill" style="width:100%"></div></div>
   <form id="form">
     <input id="input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Type the word, then press Enter" disabled>
     <button id="attack" disabled>⚔</button>
   </form>
-  <div class="win" id="msg" aria-live="polite">Type the word and press Enter to attack. Wrong word = lose a heart.</div>
+  <div class="win" id="msg" aria-live="polite">Type the word and press Enter to attack. Wrong word or too slow = lose a heart.</div>
   <button id="start">Start</button>
+  <div class="win" id="badges" aria-label="badges"></div>
 </main>
 <script>
 const WORDS = ('cat dog sun hat cup map bat egg fox owl red sky ' +
@@ -74,18 +83,28 @@ const WORDS = ('cat dog sun hat cup map bat egg fox owl red sky ' +
   'dragon wizard castle shield potion knight forest silver hammer spirit ' +
   'monster thunder dungeon crystal warrior phoenix kingdom lantern blizzard treasure ' +
   'adventure legendary labyrinth sorcerer champion explosion invisible').split(' ');
-// each stage: longer words, more HP
+// each stage: longer words, more HP, less time per word (limit in seconds)
 const STAGES = [
-  { name: 'Slime',       color: '#4ade80', min: 3, max: 4, hp: 20, scale: 1 },
-  { name: 'She-Slime',   color: '#fb923c', min: 4, max: 5, hp: 30, scale: 1 },
-  { name: 'Metal Slime', color: '#cbd5e1', min: 5, max: 6, hp: 45, scale: 1.1 },
-  { name: 'Night Slime', color: '#a855f7', min: 6, max: 8, hp: 60, scale: 1.2 },
-  { name: 'King Slime',  color: '#facc15', min: 7, max: 9, hp: 80, scale: 1.4 },
+  { name: 'Slime',       color: '#4ade80', min: 3, max: 4, hp: 20, scale: 1,   limit: 8 },
+  { name: 'She-Slime',   color: '#fb923c', min: 4, max: 5, hp: 30, scale: 1,   limit: 7 },
+  { name: 'Metal Slime', color: '#cbd5e1', min: 5, max: 6, hp: 45, scale: 1.1, limit: 6 },
+  { name: 'Night Slime', color: '#a855f7', min: 6, max: 8, hp: 60, scale: 1.2, limit: 5.5 },
+  { name: 'Demon King Slime', color: '#7f1d1d', min: 7, max: 10, hp: 120, scale: 1.8, limit: 5, boss: true },
+];
+// achievements, checked once per game; r = { win, t, hearts, stage }
+const BADGES = [
+  { id: 'hunter',   icon: '🗡', name: 'Slime Hunter', desc: 'Defeat the first slime',      test: r => r.stage >= 1 },
+  { id: 'veteran',  icon: '🛡', name: 'Veteran',      desc: 'Reach the boss',              test: r => r.stage >= 4 },
+  { id: 'hero',     icon: '👑', name: 'Hero',         desc: 'Defeat the Demon King Slime', test: r => r.win },
+  { id: 'flawless', icon: '💎', name: 'Flawless',     desc: 'Win without losing a heart',  test: r => r.win && r.hearts === 3 },
+  { id: 'speedy',   icon: '⚡', name: 'Speedrunner',  desc: 'Win in under 100 seconds',    test: r => r.win && r.t < 100 },
 ];
 const HERO = ['....yyyy....','...yyyyyy...','...ssssss...','...sbssbs...','...ssssss...','..rrbbbbrr..',
   '.wrbbbbbbr..','.w.bbbbbb.s.','.w.bbbbbb...','...gg..gg...','...gg..gg...','..kkk..kkk..'];
 const SLIME = ['.....kk.....','....kmmk....','...kmmmmk...','..kmwmmmmk..','.kmwmmmmmmk.','.kmmkmmkmmk.',
   'kmmmkmmkmmmk','kmmmmmmmmmmk','kmmmmmmmmmmk','.kkkkkkkkkk.'];
+const BOSS = ['..y..y..y...','..yyyyyyy...','..yryyyry...','.kkkkkkkkkk.','kmwmmmmmmmmk','kmwmmmmmmmmk',
+  'kmmrrmmrrmmk','kmmmmmmmmmmk','kmmkwkwkwkmk','kmmmkkkkkmmk','kmmmmmmmmmmk','.kkkkkkkkkk.'];
 const $ = id => document.getElementById(id);
 
 function draw(c, map, pal) {
@@ -95,11 +114,27 @@ function draw(c, map, pal) {
 }
 draw($('hero'), HERO, { y: '#facc15', s: '#fcd9b6', b: '#2563eb', r: '#dc2626', w: '#e5e7eb', g: '#78350f', k: '#1f2937' });
 
-let stage, hp, hearts, word, done, t0, timer, playing = false;
+let stage, hp, hearts, word, done, t0, timer, wordEnd, playing = false;
 let best = null;
 try { best = parseFloat(localStorage.getItem('arthur.bestTime')) || null; } catch {}
 const showBest = () => $('best').textContent = best ? best.toFixed(1) + 's' : '--';
 showBest();
+let badges = [];
+try { badges = JSON.parse(localStorage.getItem('arthur.badges')) || []; } catch {}
+const showBadges = () => $('badges').innerHTML = BADGES.map(b => {
+  const got = badges.includes(b.id);
+  return `<span class="${got ? 'got' : ''}" title="${b.name}: ${b.desc}" aria-label="${b.name}${got ? '' : ' (locked)'}">${b.icon}</span>`;
+}).join('');
+showBadges();
+// saves and returns newly earned badges
+function award(r) {
+  const fresh = BADGES.filter(b => !badges.includes(b.id) && b.test(r));
+  if (!fresh.length) return [];
+  badges.push(...fresh.map(b => b.id));
+  try { localStorage.setItem('arthur.badges', JSON.stringify(badges)); } catch {}
+  showBadges();
+  return fresh.map(b => b.icon + ' ' + b.name);
+}
 
 // one-shot effect element over a sprite; removes itself when its animation ends
 function fx(el, cls, text = '', color = '#fff') {
@@ -113,10 +148,12 @@ function bump(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.class
 function loadStage() {
   const s = STAGES[stage];
   hp = s.hp;
-  draw($('mon'), SLIME, { k: '#111', m: s.color, w: '#fff' });
+  draw($('mon'), s.boss ? BOSS : SLIME, { k: '#111', m: s.color, w: '#fff', y: '#facc15', r: '#ef4444' });
   $('mon').style.width = 120 * s.scale + 'px';
+  $('field').classList.toggle('boss', !!s.boss);
+  if (s.boss) bump($('field'), 'shake');
   $('stage').textContent = stage + 1;
-  $('msg').textContent = `A ${s.name} appears! (HP ${s.hp})`;
+  $('msg').textContent = (s.boss ? `⚠ BOSS! The ${s.name} appears!` : `A ${s.name} appears!`) + ` (HP ${s.hp}, ${s.limit}s per word)`;
   updateHp();
   nextWord();
 }
@@ -125,6 +162,7 @@ function nextWord() {
   word = pool[Math.floor(Math.random() * pool.length)];
   done = '';
   $('input').value = '';
+  wordEnd = performance.now() + STAGES[stage].limit * 1000;
   renderWord();
 }
 function renderWord() { $('word').innerHTML = `<span class="ok">${done}</span>${word.slice(done.length)}`; }
@@ -137,11 +175,13 @@ function end(win) {
   $('start').textContent = 'Play again';
   const t = (performance.now() - t0) / 1000;
   if (win) {
-    $('msg').textContent = `You defeated the King Slime in ${t.toFixed(1)}s! The kingdom is saved!`;
+    $('msg').textContent = `You defeated the Demon King Slime in ${t.toFixed(1)}s! The kingdom is saved!`;
     if (!best || t < best) { best = t; showBest(); try { localStorage.setItem('arthur.bestTime', t); } catch {} }
   } else {
     $('msg').textContent = `You have been defeated at stage ${stage + 1}...`;
   }
+  const fresh = award({ win, t, hearts, stage });
+  if (fresh.length) $('msg').textContent += ' New badge: ' + fresh.join(', ') + '!';
   $('start').focus();
 }
 
@@ -153,8 +193,28 @@ $('start').onclick = () => {
   loadStage();
   t0 = performance.now();
   clearInterval(timer);
-  timer = setInterval(() => $('time').textContent = ((performance.now() - t0) / 1000).toFixed(1), 100);
+  timer = setInterval(tick, 100);
 };
+function tick() {
+  const now = performance.now(), left = (wordEnd - now) / (STAGES[stage].limit * 1000);
+  $('time').textContent = ((now - t0) / 1000).toFixed(1);
+  $('tfill').style.width = Math.max(0, left) * 100 + '%';
+  $('tfill').classList.toggle('low', left < .3);
+  if (left <= 0) {
+    hurt(`Too slow! The ${STAGES[stage].name} hits you!`);
+    if (playing) nextWord();
+  }
+}
+// lose a heart; ends the game at zero
+function hurt(text) {
+  hearts--;
+  $('hearts').textContent = '♥'.repeat(hearts) + '♡'.repeat(3 - hearts);
+  bump($('hero'), 'shake');
+  fx($('hero'), 'dmg', '-♥', '#f38ba8');
+  $('msg').textContent = text;
+  $('input').value = ''; done = ''; renderWord();
+  if (hearts <= 0) end(false);
+}
 
 // live preview only: green while the typed text matches
 $('input').oninput = e => {
@@ -183,13 +243,7 @@ $('form').onsubmit = e => {
     }
     nextWord();
   } else {
-    hearts--;
-    $('hearts').textContent = '♥'.repeat(hearts) + '♡'.repeat(3 - hearts);
-    bump($('hero'), 'shake');
-    fx($('hero'), 'dmg', '-♥', '#f38ba8');
-    $('msg').textContent = `Miss! The ${STAGES[stage].name} hits you!`;
-    $('input').value = ''; done = ''; renderWord();
-    if (hearts <= 0) return end(false);
+    hurt(`Miss! The ${STAGES[stage].name} hits you!`);
   }
 };
 // keyboard popping up shrinks the visual viewport: keep the input in view
