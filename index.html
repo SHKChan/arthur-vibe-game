@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Arthur 的打字游戏 · Vibe Game</title>
+<title>打字游戏 · Vibe Game</title>
 <style>
   :root { --bg: #000; --fg: #fff; --hit: #f38ba8; --ok: #a6e3a1; }
   body { font-family: "Courier New", monospace; font-weight: bold; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; min-height: 100vh; margin: 0; }
@@ -116,12 +116,19 @@ function draw(c, map, pal) {
 draw($('hero'), HERO, { y: '#facc15', s: '#fcd9b6', b: '#2563eb', r: '#dc2626', w: '#e5e7eb', g: '#78350f', k: '#1f2937' });
 
 let stage, hp, hearts, word, done, t0, timer, wordEnd, playing = false;
+// storage keys use the URL slug; copy over records saved under the old /arthur/ address once
+try {
+  for (const k of ['bestTime', 'badges']) {
+    const old = localStorage.getItem('arthur.' + k);
+    if (old !== null && localStorage.getItem('typing-game.' + k) === null) localStorage.setItem('typing-game.' + k, old);
+  }
+} catch {}
 let best = null;
-try { best = parseFloat(localStorage.getItem('arthur.bestTime')) || null; } catch {}
+try { best = parseFloat(localStorage.getItem('typing-game.bestTime')) || null; } catch {}
 const showBest = () => $('best').textContent = best ? best.toFixed(1) + 's' : '--';
 showBest();
 let badges = [];
-try { badges = JSON.parse(localStorage.getItem('arthur.badges')) || []; } catch {}
+try { badges = JSON.parse(localStorage.getItem('typing-game.badges')) || []; } catch {}
 const showBadges = () => $('badges').innerHTML = BADGES.map(b => {
   const got = badges.includes(b.id);
   return `<span class="${got ? 'got' : ''}" title="${b.name}: ${b.desc}" aria-label="${b.name}${got ? '' : ' (locked)'}">${b.icon}</span>`;
@@ -132,7 +139,7 @@ function award(r) {
   const fresh = BADGES.filter(b => !badges.includes(b.id) && b.test(r));
   if (!fresh.length) return [];
   badges.push(...fresh.map(b => b.id));
-  try { localStorage.setItem('arthur.badges', JSON.stringify(badges)); } catch {}
+  try { localStorage.setItem('typing-game.badges', JSON.stringify(badges)); } catch {}
   showBadges();
   return fresh.map(b => b.icon + ' ' + b.name);
 }
@@ -177,7 +184,7 @@ function end(win) {
   const t = (performance.now() - t0) / 1000;
   if (win) {
     $('msg').textContent = `You defeated the Demon King Slime in ${t.toFixed(1)}s! The kingdom is saved!`;
-    if (!best || t < best) { best = t; showBest(); try { localStorage.setItem('arthur.bestTime', t); } catch {} }
+    if (!best || t < best) { best = t; showBest(); try { localStorage.setItem('typing-game.bestTime', t); } catch {} }
   } else {
     $('msg').textContent = `You have been defeated at stage ${stage + 1}...`;
   }
