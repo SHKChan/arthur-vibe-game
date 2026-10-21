@@ -53,7 +53,7 @@
     input { font-size: 1.2rem; padding: .3rem; }
   }
 </style>
-<meta name="vg:version" content="3.1.0">
+<meta name="vg:version" content="3.2.0">
 <script src="/nav.js" defer></script>
 </head>
 <body>
@@ -146,7 +146,7 @@ const STR = {
     intro: 'Type the word to attack. Wrong letters are blocked. Too slow = lose a heart. Clean streaks hit harder.',
     appear: 'Here comes the {n}! (HP {hp})', bossAppear: 'BOSS! The {n} appears! (HP {hp})',
     dmg: '{n} takes {d} damage!', crit: 'Critical hit! {n} takes {d} damage!', slow: 'Too slow! The {n} hits you!',
-    rage: 'The {n} is enraged!', heal: 'Combo {d}! A heart comes back.', comboUp: 'Combo {c}! Damage ×{m}.',
+    rage: 'The {n} is enraged!', heal: 'Combo {d}! A heart comes back.', comboUp: 'Combo {c}! Damage ×{m}.', comboLost: 'Combo {c} lost!',
     'spell.dark': 'Dark Spell! Break it in {d} seconds!', 'broken.dark': 'Spell broken! {d} damage!',
     'spell.drum': 'War Drum! Beat it in {d} seconds!', 'broken.drum': 'Drum broken! {d} damage!',
     'spell.curse': 'Curse! Lift it in {d} seconds!', 'broken.curse': 'Curse lifted! {d} damage!',
@@ -172,7 +172,7 @@ const STR = {
     intro: '看词打词，打完自动出刀。打错的字母打不进去。太慢扣一颗心。连续不出错，伤害越来越高。',
     appear: '{n}出现了！（血量 {hp}）', bossAppear: '魔王来了！{n}出现了！（血量 {hp}）',
     dmg: '{n}受到 {d} 点伤害！', crit: '暴击！{n}受到 {d} 点伤害！', slow: '太慢了，{n}打中了你！',
-    rage: '{n}发怒了！', heal: '连击 {d}，回一颗心。', comboUp: '连击 {c}！伤害 ×{m}。',
+    rage: '{n}发怒了！', heal: '连击 {d}，回一颗心。', comboUp: '连击 {c}！伤害 ×{m}。', comboLost: '{c} 连击断了！',
     'spell.dark': '黑暗咒语！{d} 秒内打破它！', 'broken.dark': '咒语破了！造成 {d} 点伤害！',
     'spell.drum': '战鼓擂响！{d} 秒内打断它！', 'broken.drum': '战鼓破了！造成 {d} 点伤害！',
     'spell.curse': '诅咒！{d} 秒内解开它！', 'broken.curse': '诅咒解开了！造成 {d} 点伤害！',
@@ -289,6 +289,7 @@ const SFX = {
   lose:  () => { arp([392, 330, 262], .15); tone(196, 150, .5, 'square', .1, .45); },
   badge: () => arp([1568, 2093, 2637], .06, 'triangle', .08),
   tier:  () => arp([784, 988, 1175, 1568], .05, 'square', .08),
+  break: () => { tone(500, 120, .3, 'square', .1); noise(.15, .12, 3000); },
 };
 const sfx = (n, a) => { if (!muted) SFX[n](a); };
 const showSnd = () => {
@@ -547,7 +548,7 @@ const SCENE_FX = {
 // 3x5 pixel font for the floating numbers
 const FONT = { 0: '111101101101111', 1: '010110010010111', 2: '111001111100111', 3: '111001111001111', 4: '101101111001001',
   5: '111100111001111', 6: '111100111101111', 7: '111001010010010', 8: '111101111101111', 9: '111101111001111',
-  '-': '000000111000000', '+': '000010111010000', C: '111100100100111', R: '110101110101101', I: '111010010010111', T: '111010010010010' };
+  '-': '000000111000000', x: '000101010101000', '+': '000010111010000', C: '111100100100111', R: '110101110101101', I: '111010010010111', T: '111010010010010' };
 function text(c, str, x, y, col) {
   [...str].forEach((ch, i) => {
     if (ch === '♥') return sprite(c, HEART, { k: col }, x + i * 4, y);
@@ -640,12 +641,17 @@ function hit() {
   else d = Math.ceil(d * (1 + (crit ? CRIT - 1 : 0) + (tier ? COMBO_TIERS[tier - 1].mult - 1 : 0)));
   hp = Math.max(0, hp - d);
   if (clean) maxCombo = Math.max(maxCombo, ++combo);
-  fx.atk = now();
-  floats.push({ str: '-' + d, x: 84, y: s.boss ? 12 : 24, col: crit || spell ? '#fb923c' : '#facc15', t: now() });
+  fx.atk = now(); fx.atkTier = spell ? 0 : tier;
+  const tcol = tier ? COMBO_TIERS[tier - 1].col : '#facc15';
+  floats.push({ str: '-' + d, x: 84, y: s.boss ? 12 : 24, col: crit || spell ? '#fb923c' : tcol, t: now() });
   if (crit) floats.push({ str: 'CRIT', x: 80, y: s.boss ? 4 : 16, col: '#fb923c', t: now() });
   sfx(crit || spell ? 'crit' : 'hit');
   say(spell ? t('broken.' + s.rage.spell.key, { d }) : t(crit ? 'crit' : 'dmg', { n: name(), d }));
-  if (up) { setTimeout(() => sfx('tier'), 120); say(t('comboUp', { c, m: COMBO_TIERS[tier - 1].mult })); }
+  if (up) { // new combo tier: sparkle ring and a pixel x10 over the hero
+    setTimeout(() => sfx('tier'), 120); say(t('comboUp', { c, m: COMBO_TIERS[tier - 1].mult }));
+    fx.burst = fx.shake = now(); fx.burstCol = tcol;
+    floats.push({ str: 'x' + c, x: 12, y: 16, col: tcol, t: now() });
+  }
   if (clean && combo % COMBO_HEAL === 0 && hearts < 3) {
     hearts++; setTimeout(() => sfx('heal'), 150);
     floats.push({ str: '+♥', x: 18, y: 22, col: '#a6e3a1', t: now() });
@@ -666,9 +672,19 @@ function hit() {
   }
   pause(crit ? 100 : 60, nextWord); // short hit-stop so the blow lands
 }
+// a streak of 10+ shatters into falling pixels when it breaks
+function breakCombo() {
+  if (combo >= 10) {
+    const col = COMBO_TIERS[tierOf(combo) - 1].col;
+    fx.brk = now();
+    fx.parts = Array.from({ length: 12 }, (_, i) => ({ x: 19 + i % 6, y: FLOOR - 10 + (i / 6 | 0) * 4, vx: (i % 6 - 2.5) * 7, vy: -14 - (i % 3) * 6, col }));
+    sfx('break');
+  }
+  combo = 0;
+}
 // lose a heart (timer ran out); ends the run at zero
 function hurt() {
-  hearts--; hurts++; combo = 0; fx.hurt = fx.shake = now(); sfx('hurt'); hud();
+  hearts--; hurts++; breakCombo(); fx.hurt = fx.shake = now(); sfx('hurt'); hud();
   floats.push({ str: '-♥', x: 18, y: 22, col: '#f38ba8', t: now() });
   say(t('slow', { n: name() }));
   if (hearts <= 0) return end(false);
@@ -769,7 +785,9 @@ function onType() {
   if (v.length > done.length) {
     keys++;
     if (!word.startsWith(v)) {
-      typos++; clean = false; combo = 0; hud(); sfx('typo');
+      const lost = combo;
+      typos++; clean = false; breakCombo(); hud(); sfx('typo');
+      if (lost >= 10) say(t('comboLost', { c: lost }));
       const w = $('word'); w.classList.remove('bad'); void w.offsetWidth; w.classList.add('bad');
       el.value = done; return;
     }
@@ -823,7 +841,22 @@ function frame() {
   let hx = 16;
   if (a < .1) hx = 15; else if (a < .22) hx = 16 + Math.round((a - .1) / .12 * 22); else if (a < .36) hx = 38 - Math.round((a - .22) / .14 * 22);
   const hurtOn = fx.hurt && n - fx.hurt < 220;
-  sprite(g, HERO, HERO_PAL, hx, FLOOR - 12, { liftRows: Math.floor(n / 600) % 2 ? 6 : 0, solid: hurtOn && step % 2 ? '#ef4444' : null });
+  const lift = Math.floor(n / 600) % 2 ? 6 : 0, ct = running ? tierOf(combo) : 0;
+  if (ct) { // combo aura: a 1px outline in the tier colour, pulsing faster at higher tiers
+    const col = COMBO_TIERS[ct - 1].col;
+    g.globalAlpha = Math.floor(n / [500, 350, 200][ct - 1]) % 2 ? .9 : .45;
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => sprite(g, HERO, HERO_PAL, hx + dx, FLOOR - 12 + dy, { liftRows: lift, solid: col }));
+    g.globalAlpha = 1;
+  }
+  sprite(g, HERO, HERO_PAL, hx, FLOOR - 12, { liftRows: lift, solid: hurtOn && step % 2 ? '#ef4444' : null });
+  if (fx.burst && n - fx.burst < 450) {
+    const r = 4 + Math.round((n - fx.burst) / 450 * 12);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; px(g, hx + 6 + Math.round(Math.cos(a) * r), FLOOR - 6 + Math.round(Math.sin(a) * r * .8), fx.burstCol); }
+  }
+  if (fx.brk && n - fx.brk < 700) {
+    const tt = (n - fx.brk) / 1000;
+    fx.parts.forEach(p => { const y = Math.round(p.y + p.vy * tt + 60 * tt * tt); if (y < H) px(g, Math.round(p.x + p.vx * tt), y, p.col); });
+  }
 
   // monster: idles, flashes and is knocked back on a hit, melts when killed
   const mon = MONSTERS[s.mon], idle = mon.idle, boss = !!s.boss, sc = boss ? 2 : 1, map = mon.map;
@@ -851,7 +884,13 @@ function frame() {
         const sx = Math.floor((n % 2000) / 2000 * 14) - 1;
         for (let y = 2; y < map.length - 1; y++) if (map[y][sx] === 'm') px(g, mx + sx, my + y, '#fff');
       }
-      if (flash) for (let i = 0; i < mw + 4; i++) px(g, mx - 2 + i, my + mh - 2 - Math.round(i * (mh - 4) / (mw + 4)), '#fff');
+      if (flash) { // slash: white line, then two lines in the tier colour, then a red X at combo 20+
+        const tr = fx.atkTier || 0, col = tr ? COMBO_TIERS[tr - 1].col : '#fff', L = mw + 4;
+        const diag = (flip, off) => { for (let i = 0; i < L; i++) px(g, mx - 2 + (flip ? L - 1 - i : i), my + mh - 2 - Math.round(i * (mh - 4) / L) + off, col); };
+        diag(false, 0);
+        if (tr) diag(false, 1);
+        if (tr >= 3) { diag(true, 0); diag(true, 1); }
+      }
       if (running) {
         const bw = boss ? 30 : 24, bx = mx + (mw - bw) / 2 | 0, by = my - (boss ? 7 : 5);
         rect(g, bx - 1, by - 1, bw + 2, 5, '#000'); rect(g, bx, by, bw, 3, '#3a3352');
