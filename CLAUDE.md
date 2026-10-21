@@ -30,7 +30,7 @@
 - 玩法：边打边检查，打错的字母打不进去；打完自动出刀；只有超时扣心。连击每 8 回一颗心，快速无错打完算暴击。连击加伤害按 `COMBO_TIERS`（5 / 10 / 20 → ×1.25 / ×1.5 / ×2），和暴击是相加不是相乘；魔王特殊词不吃连击加成。
 - 画面：一张 112×52 的画布，按整数倍放大（手机 3 倍、电脑 4 倍、键盘弹出或屏幕矮时 2 倍）。比 GUIDE 建议的 240×110 小，是为了手机上能整数倍放大，用户确认过。
 - 存档键：`typing-game.save.v1`（`{ unlocked: 已解锁世界数, world: 上次选的世界, best: [每个世界最快秒数] }`）、`typing-game.badges`、`typing-game.sound`（`on`/`off`）。`typing-game.bestTime2` 是 v2 的最快通关（=世界 1），第一次打开时拷进 `best[0]`，世界 1 出新纪录时也照写，方便回退。有 `hero` 徽章的老玩家直接解锁世界 2。`typing-game.bestTime` 是 v1 规则的旧记录，保留不读。网址以前是 `/arthur/`，旧的 `arthur.*` 记录在第一次打开时拷过来，这段迁移代码不要删。
-- **例外：界面语言跟浏览器。** `navigator.languages` 第一个以 `zh` 开头显示中文，其他显示英文；`?lang=en` / `?lang=zh` 可强制（测试用，不保存）。要打的单词始终是英文。不读写 `vibe.lang`。GUIDE 的“只显示中文”不适用于本游戏（GUIDE 里还写着“界面是英文”，没改，以这里为准）。
+- **例外：界面语言跟浏览器。** `navigator.languages` 第一个以 `zh` 开头显示中文，其他显示英文；`?lang=en` / `?lang=zh` 可强制（测试用，不保存）。要打的单词始终是英文。不读写 `vibe.lang`。GUIDE 的“只显示中文”不适用于本游戏。（vibe-game 仓库 GUIDE 第四节对本游戏还是 v1 时的旧描述，没改；以这里为准。）
 - 手机上键盘弹出时要保证怪物、单词、输入框都看得见（`fit()` 和 `visualViewport` 那段）。
 - 更新日志：`CHANGELOG.md`。
 - `tools/package.json` 写着 `"type": "commonjs"`，防止上层目录的 `package.json` 把 `build.js` 当成 ES 模块，不要删。
