@@ -34,6 +34,9 @@
   button:disabled { opacity: .4; cursor: default; }
   #snd { font-size: 1rem; padding: 0 .5rem; border-width: 3px; }
   form { width: 100%; margin: 0; }
+  #hint { font-size: .85rem; color: #a39cbd; margin-top: -4px; }
+  #start[hidden] + #hint { display: none; }
+  @media not ((hover: hover) and (pointer: fine)) { #hint { display: none; } } /* touch screens have no keyboard to press */
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) { #word.bad { animation: none; color: var(--hit); } }
   /* phones / keyboard open: tighter spacing so scene, word and input stay visible */
@@ -44,7 +47,7 @@
     input { font-size: 1.2rem; padding: .3rem; }
   }
 </style>
-<meta name="vg:version" content="2.0.0">
+<meta name="vg:version" content="2.1.0">
 <script src="/nav.js" defer></script>
 </head>
 <body>
@@ -63,6 +66,7 @@
   <div class="win" id="msg" aria-live="polite"></div>
   <span class="sr" id="say" aria-live="polite"></span>
   <button id="start" type="button" data-i18n="start">Start</button>
+  <span id="hint" data-i18n="anyKey"></span>
   <div class="win" id="badges"></div>
 </main>
 <script>
@@ -109,7 +113,7 @@ const STR = {
     rage: 'The {n} is enraged!', spell: 'Dark Spell! Break it in {d} seconds!', spellBroken: 'Spell broken! {d} damage!',
     heal: 'Combo {d}! A heart comes back.', win: 'You defeated the Demon King Slime in {d}s! The kingdom is saved!',
     lose: 'You have been defeated at stage {d}.', stats: '{w} WPM · {a}% accuracy · max combo {c}.', newBest: 'New best!',
-    newBadge: 'New badge: {n}!', combo: 'x{d}', soundOn: 'Sound on', soundOff: 'Sound off',
+    newBadge: 'New badge: {n}!', combo: 'x{d}', anyKey: 'or press any key', soundOn: 'Sound on', soundOff: 'Sound off',
     hearts: '{d} of 3 hearts', scene: 'Stage {s}: {n}, HP {hp}. {h}.', input: 'Type the word', badges: 'Badges', locked: '(locked)',
     'b.hunter': 'Slime Hunter: Defeat the first slime', 'b.veteran': 'Veteran: Reach the boss', 'b.hero': 'Hero: Defeat the Demon King Slime',
     'b.flawless': 'Flawless: Win without losing a heart', 'b.speedy': 'Speedrunner: Win in under 75 seconds',
@@ -122,7 +126,7 @@ const STR = {
     rage: '{n}发怒了！', spell: '黑暗咒语！{d} 秒内打破它！', spellBroken: '咒语破了！造成 {d} 点伤害！',
     heal: '连击 {d}，回一颗心。', win: '用时 {d} 秒打倒魔王史莱姆，王国得救了！',
     lose: '你在第 {d} 关倒下了。', stats: '每分钟 {w} 词 · 准确率 {a}% · 最高连击 {c}。', newBest: '新纪录！',
-    newBadge: '获得徽章：{n}！', combo: '连击 {d}', soundOn: '声音开', soundOff: '声音关',
+    newBadge: '获得徽章：{n}！', combo: '连击 {d}', anyKey: '或按任意键', soundOn: '声音开', soundOff: '声音关',
     hearts: '还剩 {d} 颗心', scene: '第 {s} 关：{n}，血量 {hp}。{h}。', input: '输入单词', badges: '徽章', locked: '（未获得）',
     'b.hunter': '史莱姆猎人：打倒第一只史莱姆', 'b.veteran': '老兵：打到魔王', 'b.hero': '勇者：打倒魔王史莱姆',
     'b.flawless': '无伤：一颗心不丢通关', 'b.speedy': '速通：75 秒内通关',
@@ -464,8 +468,18 @@ function end(win) {
   setTimeout(() => { b.disabled = false; b.focus(); }, 800);
 }
 
+// any key starts (or restarts once Play again wakes up); Tab, modifier keys and shortcuts are left alone
+document.addEventListener('keydown', e => {
+  const b = $('start');
+  if (running || b.hidden || b.disabled || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Escape'].includes(e.key)) return;
+  if (e.target.closest('input, textarea, select, [contenteditable]')) return; // e.g. the site top bar's reminder box
+  e.preventDefault(); // the key must not land in the input as a first letter (or click Start a second time)
+  b.click();
+});
 $('start').onclick = () => {
-  audio(); // the click unlocks sound on phones
+  if (running) return;
+  audio(); // the click (or key) unlocks sound
   stage = 0; hearts = 3; combo = maxCombo = keys = typos = good = 0;
   used.clear(); bag = []; bagKey = ''; floats = []; fx = {}; dead = false; runId++;
   running = playing = true; t0 = now(); pausedTotal = 0; pausedAt = 0;
