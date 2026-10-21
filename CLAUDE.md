@@ -24,10 +24,12 @@
 
 ## 本游戏
 
-- 全部代码在 `index.html` 一个文件里：`WORDS` 词库、`STAGES` 五关（词长、血量、每词限时 = `base + per × 词长`、场景；最后一关是魔王，`rage` 是发怒阶段和黑暗咒语）、`BADGES` 徽章、`STR` 界面文字（中英两套）、`SFX` 音效、`SCENES` 像素场景。
+- 全部代码在 `index.html` 一个文件里：`WORDS` 词库、`WORLDS` 三个世界（每个 5 关：词长、血量、每词限时 = `base + per × 词长`、怪物 `mon`、场景 `scene`；第 5 关是魔王，`rage` 是发怒阶段和特殊词 `spell`）、`MONSTERS` 怪物（像素图、配色、待机动作）、`SCENES` / `SCENE_FX` 像素场景和火光、`BADGES` 徽章、`STR` 界面文字（中英两套）、`SFX` 音效。
+- 一局打一个世界，3 颗心；打倒魔王解锁下一个世界。关卡显示成“1-3”。开始前 ← → 选世界，1–3 直接开打，其他键开打选中的。`?world=N` 临时打开世界 N（测试用，不保存）。
+- 新世界：在 `WORLDS` 加一项、`MONSTERS` 加怪物、`SCENES` 加场景、`STR` 两种语言都加名字和 `win` 文案；存档 `best` 数组跟着变长。
 - 玩法：边打边检查，打错的字母打不进去；打完自动出刀；只有超时扣心。连击每 8 回一颗心，快速无错打完算暴击。
 - 画面：一张 112×52 的画布，按整数倍放大（手机 3 倍、电脑 4 倍、键盘弹出或屏幕矮时 2 倍）。比 GUIDE 建议的 240×110 小，是为了手机上能整数倍放大，用户确认过。
-- 存档键：`typing-game.bestTime2`（v2 规则下最快通关秒数）、`typing-game.badges`、`typing-game.sound`（`on`/`off`）。`typing-game.bestTime` 是 v1 规则的旧记录，保留不读。网址以前是 `/arthur/`，旧的 `arthur.*` 记录在第一次打开时拷过来，这段迁移代码不要删。
+- 存档键：`typing-game.save.v1`（`{ unlocked: 已解锁世界数, world: 上次选的世界, best: [每个世界最快秒数] }`）、`typing-game.badges`、`typing-game.sound`（`on`/`off`）。`typing-game.bestTime2` 是 v2 的最快通关（=世界 1），第一次打开时拷进 `best[0]`，世界 1 出新纪录时也照写，方便回退。有 `hero` 徽章的老玩家直接解锁世界 2。`typing-game.bestTime` 是 v1 规则的旧记录，保留不读。网址以前是 `/arthur/`，旧的 `arthur.*` 记录在第一次打开时拷过来，这段迁移代码不要删。
 - **例外：界面语言跟浏览器。** `navigator.languages` 第一个以 `zh` 开头显示中文，其他显示英文；`?lang=en` / `?lang=zh` 可强制（测试用，不保存）。要打的单词始终是英文。不读写 `vibe.lang`。GUIDE 的“只显示中文”不适用于本游戏（GUIDE 里还写着“界面是英文”，没改，以这里为准）。
 - 手机上键盘弹出时要保证怪物、单词、输入框都看得见（`fit()` 和 `visualViewport` 那段）。
 - 更新日志：`CHANGELOG.md`。
