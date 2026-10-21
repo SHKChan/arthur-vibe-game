@@ -24,7 +24,11 @@
 
 ## 本游戏
 
-- 全部代码在 `index.html` 一个文件里：`WORDS` 词库、`STAGES` 五关（词长、血量、每词限时，最后一关是魔王）、`BADGES` 徽章。
-- 存档键：`typing-game.bestTime`（最快通关秒数）、`typing-game.badges`。网址以前是 `/arthur/`，旧的 `arthur.*` 记录在第一次打开时拷过来，这段迁移代码不要删。
-- **例外：界面是英文。** 练的是英文单词，提示文字也用英文；GUIDE 的“只显示中文”不适用于本游戏。
-- 手机上键盘弹出时要保证怪物、单词、输入框都看得见（`visualViewport` 那段）。
+- 全部代码在 `index.html` 一个文件里：`WORDS` 词库、`STAGES` 五关（词长、血量、每词限时 = `base + per × 词长`、场景；最后一关是魔王，`rage` 是发怒阶段和黑暗咒语）、`BADGES` 徽章、`STR` 界面文字（中英两套）、`SFX` 音效、`SCENES` 像素场景。
+- 玩法：边打边检查，打错的字母打不进去；打完自动出刀；只有超时扣心。连击每 8 回一颗心，快速无错打完算暴击。
+- 画面：一张 112×52 的画布，按整数倍放大（手机 3 倍、电脑 4 倍、键盘弹出或屏幕矮时 2 倍）。比 GUIDE 建议的 240×110 小，是为了手机上能整数倍放大，用户确认过。
+- 存档键：`typing-game.bestTime2`（v2 规则下最快通关秒数）、`typing-game.badges`、`typing-game.sound`（`on`/`off`）。`typing-game.bestTime` 是 v1 规则的旧记录，保留不读。网址以前是 `/arthur/`，旧的 `arthur.*` 记录在第一次打开时拷过来，这段迁移代码不要删。
+- **例外：界面语言跟浏览器。** `navigator.languages` 第一个以 `zh` 开头显示中文，其他显示英文；`?lang=en` / `?lang=zh` 可强制（测试用，不保存）。要打的单词始终是英文。不读写 `vibe.lang`。GUIDE 的“只显示中文”不适用于本游戏（GUIDE 里还写着“界面是英文”，没改，以这里为准）。
+- 手机上键盘弹出时要保证怪物、单词、输入框都看得见（`fit()` 和 `visualViewport` 那段）。
+- 更新日志：`CHANGELOG.md`。
+- `tools/package.json` 写着 `"type": "commonjs"`，防止上层目录的 `package.json` 把 `build.js` 当成 ES 模块，不要删。

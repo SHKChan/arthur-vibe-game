@@ -1,0 +1,4 @@
+{
+  "//": "build.js uses require(); this stops a package.json with \"type\": \"module\" in a parent folder from breaking it",
+  "type": "commonjs"
+}
