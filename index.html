@@ -53,7 +53,7 @@
     input { font-size: 1.2rem; padding: .3rem; }
   }
 </style>
-<meta name="vg:version" content="3.2.0">
+<meta name="vg:version" content="3.3.0">
 <script src="/nav.js" defer></script>
 </head>
 <body>
@@ -94,7 +94,7 @@ const WORDS = ('cat dog sun hat cup map bat egg fox owl red sky axe bow elf orc 
 // time per word = base + per * word length (seconds). A boss enrages at rage.at HP: longer words, and every
 // rage.every-th word is its special word (spell: own limit and damage multiplier, colour and name)
 const WORLDS = [
-  { name: 'w1', win: 'win', levels: [
+  { name: 'w1', win: 'win', song: 'fields', levels: [
     { name: 'st1', mon: 'slime', color: '#4ade80', min: 3, max: 4, hp: 20,  base: 3,   per: 1.4, scene: 'meadow' },
     { name: 'st2', mon: 'slime', color: '#fb923c', min: 4, max: 5, hp: 30,  base: 2.5, per: 1.1, scene: 'desert' },
     { name: 'st3', mon: 'slime', color: '#cbd5e1', min: 5, max: 6, hp: 40,  base: 2,   per: 0.8, scene: 'cave', shine: true },
@@ -102,7 +102,7 @@ const WORLDS = [
     { name: 'st5', mon: 'slimeKing', color: '#7f1d1d', min: 7, max: 9, hp: 100, base: 1.5, per: 0.6, scene: 'castle', boss: true,
       rage: { at: 50, min: 8, max: 10, base: 1.5, per: 0.55, every: 3, spell: { key: 'dark', color: '#c084fc', min: 7, max: 8, limit: 5, mult: 2 } } },
   ] },
-  { name: 'w2', win: 'win2', levels: [
+  { name: 'w2', win: 'win2', song: 'canyon', levels: [
     { name: 'm.goblin', mon: 'goblin', min: 4, max: 5, hp: 30, base: 2.5, per: 1.0,  scene: 'trail' },
     { name: 'm.scout',  mon: 'scout',  min: 5, max: 6, hp: 40, base: 2,   per: 0.75, scene: 'camp' },
     { name: 'm.shaman', mon: 'shaman', min: 6, max: 7, hp: 52, base: 1.5, per: 0.65, scene: 'sunset' },
@@ -110,7 +110,7 @@ const WORLDS = [
     { name: 'm.goblinKing', mon: 'goblinKing', min: 8, max: 9, hp: 120, base: 1.3, per: 0.55, scene: 'fort', boss: true,
       rage: { at: 60, min: 8, max: 10, base: 1.2, per: 0.5, every: 2, spell: { key: 'drum', color: '#fb923c', min: 5, max: 6, limit: 3.5, mult: 2 } } },
   ] },
-  { name: 'w3', win: 'win3', levels: [
+  { name: 'w3', win: 'win3', song: 'crypt', levels: [
     { name: 'm.skeleton', mon: 'skeleton', min: 5, max: 6,  hp: 40, base: 2,   per: 0.7,  scene: 'graveyard' },
     { name: 'm.ghost',    mon: 'ghost',    min: 6, max: 7,  hp: 56, base: 1.5, per: 0.6,  scene: 'hollow' },
     { name: 'm.mummy',    mon: 'mummy',    min: 7, max: 9,  hp: 72, base: 1.3, per: 0.55, scene: 'crypt' },
@@ -257,22 +257,22 @@ function audio() {
   if (ac.state === 'suspended') ac.resume();
   return ac;
 }
-function tone(f0, f1, dur, type = 'square', vol = .12, delay = 0) {
+function tone(f0, f1, dur, type = 'square', vol = .12, delay = 0, out = master) {
   const a = audio(); if (!a) return;
   const at = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
   o.type = type; o.frequency.setValueAtTime(f0, at);
   if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, at + dur);
   g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(.001, at + dur);
-  o.connect(g).connect(master); o.start(at); o.stop(at + dur + .02);
+  o.connect(g).connect(out); o.start(at); o.stop(at + dur + .02);
 }
-function noise(dur, vol = .15, hp = 1000, delay = 0) {
+function noise(dur, vol = .15, hp = 1000, delay = 0, out = master) {
   const a = audio(); if (!a) return;
   const buf = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), at = a.currentTime + delay;
   s.buffer = buf; f.type = 'highpass'; f.frequency.value = hp;
   g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(.001, at + dur);
-  s.connect(f).connect(g).connect(master); s.start(at);
+  s.connect(f).connect(g).connect(out); s.start(at);
 }
 const arp = (fs, step, type = 'square', vol = .1) => fs.forEach((f, i) => tone(f, f, step * 1.2, type, vol, i * step));
 const SFX = {
@@ -304,7 +304,69 @@ $('snd').onclick = () => {
   muted = !muted; showSnd();
   try { localStorage.setItem('typing-game.sound', muted ? 'off' : 'on'); } catch {}
   if (!muted) { audio(); sfx('badge'); }
+  bgmSync();
 };
+
+/* ---------- music: a chiptune loop per world and a boss theme, scheduled on the same Web Audio clock ---------- */
+// A song is 4 bars of 8 eighth notes. lead: 32 notes in semitones from key ('.' rest, '-' hold the note before);
+// chords: each bar's root in semitones from low; bass: 8 notes per bar from that root; drums per bar: k kick, s snare, h hat.
+const seq = str => {
+  const a = str.trim().split(/\s+/);
+  return a.map((x, i) => { if (x === '.' || x === '-') return null; let n = 1; while (a[i + n] === '-') n++; return [+x, n]; });
+};
+const song = o => ({ ...o, lead: seq(o.lead), bass: seq(o.bass) });
+const SONGS = {
+  fields: song({ bpm: 132, key: 72, low: 36, wave: 'square', chords: [0, -3, 5, 7],
+    lead: '7 . 4 7 12 - 11 9   9 - 4 . 9 12 11 9   5 . 9 12 14 - 12 9   11 - 7 . 2 5 7 -',
+    bass: '0 . 7 . 12 . 7 .', drums: 'k.h.s.h.k.k.s.hh' }),
+  canyon: song({ bpm: 120, key: 69, low: 45, wave: 'square', chords: [0, -2, -4, -5],
+    lead: '0 . 3 5 7 . 5 3   -2 . 2 5 7 - 5 2   -4 . 0 3 8 - 7 3   7 . 11 . 14 12 11 -',
+    bass: '0 . 0 7 . 7 12 .', drums: 'k.hks.h.k.hks.hh' }),
+  crypt:  song({ bpm: 100, key: 74, low: 38, wave: 'triangle', chords: [0, -4, 5, 7],
+    lead: '12 . 7 . 3 5 7 -   8 . 5 . 2 3 5 -   5 . 8 . 10 8 7 5   7 . 11 . 14 - 11 7',
+    bass: '0 - - - 7 - - -', drums: 'k...h...s...h.h.' }),
+  boss:   song({ bpm: 150, key: 64, low: 40, wave: 'square', chords: [0, -4, -2, -5],
+    lead: '0 3 7 3 12 7 3 7   -4 0 3 0 8 3 0 3   -2 2 5 2 10 5 2 5   -5 -1 2 -1 7 - 11 -',
+    bass: '0 0 12 0 0 12 0 12', drums: 'k.hhs.hhk.kks.hh' }),
+};
+const midi = m => 440 * 2 ** ((m - 69) / 12);
+// drums are 16th notes (two per eighth); the bus fades out when music stops
+const MUS = { name: '', fast: 1, step: 0, next: 0, timer: 0, bus: null };
+function playStep(s, i, at, dt) {
+  const at0 = at - ac.currentTime, b = MUS.bus, r = s.chords[i >> 3], ln = s.lead[i], bn = s.bass[i & 7];
+  if (ln) tone(midi(s.key + ln[0]), midi(s.key + ln[0]), dt * ln[1] * .9, s.wave, s.wave === 'square' ? .035 : .08, at0, b);
+  if (bn) tone(midi(s.low + r + bn[0]), midi(s.low + r + bn[0]), dt * bn[1] * .9, 'triangle', .14, at0, b);
+  for (let h = 0; h < 2; h++) {
+    const d = s.drums[(i & 7) * 2 + h], t = at0 + h * dt / 2;
+    if (d === 'k') tone(130, 40, .12, 'sine', .3, t, b);
+    else if (d === 's') noise(.08, .07, 1800, t, b);
+    else if (d === 'h') noise(.025, .03, 7000, t, b);
+  }
+}
+function tick() {
+  const s = SONGS[MUS.name];
+  if (document.hidden || !s) { MUS.next = 0; return; } // tab hidden: the run is paused, so is the music
+  const dt = 30 / (s.bpm * MUS.fast);
+  if (MUS.next < ac.currentTime) MUS.next = ac.currentTime + .05;
+  while (MUS.next < ac.currentTime + .15) { playStep(s, MUS.step, MUS.next, dt); MUS.step = (MUS.step + 1) % 32; MUS.next += dt; }
+}
+// start or stop the loop to match the run and the ♪ button
+function bgmSync() {
+  const on = !muted && running && MUS.name && audio();
+  if (on && !MUS.timer) {
+    if (!MUS.bus) { MUS.bus = ac.createGain(); MUS.bus.connect(master); }
+    MUS.bus.gain.cancelScheduledValues(ac.currentTime); MUS.bus.gain.setValueAtTime(.6, ac.currentTime);
+    MUS.next = 0; MUS.timer = setInterval(tick, 25);
+  } else if (!on && MUS.timer) {
+    clearInterval(MUS.timer); MUS.timer = 0;
+    MUS.bus.gain.setValueAtTime(.6, ac.currentTime); MUS.bus.gain.linearRampToValueAtTime(0, ac.currentTime + .3);
+  }
+}
+// play a song ('' = silence); the same song keeps its place, so levels 1-4 run on without restarting
+function bgm(name, fast = 1) {
+  if (name !== MUS.name) { MUS.step = 0; MUS.next = 0; }
+  MUS.name = name; MUS.fast = fast; bgmSync();
+}
 
 /* ---------- pixel scene: one 112x52 canvas, scaled by whole numbers ---------- */
 const W = 112, H = 52, FLOOR = 44;
@@ -630,8 +692,8 @@ function loadStage() {
   hp = s.hp; raged = false; rageWords = 0; dead = false; fx.kill = 0;
   SCENES[s.scene](false); hud();
   word = ''; done = ''; renderWord();
-  if (s.boss) { sfx('boss'); fx.shake = now(); say(t('bossAppear', { n: name(), hp: s.hp })); pause(1200, nextWord); }
-  else { say(t('appear', { n: name(), hp: s.hp })); nextWord(); }
+  if (s.boss) { bgm(''); sfx('boss'); fx.shake = now(); say(t('bossAppear', { n: name(), hp: s.hp })); pause(1200, () => { bgm('boss'); nextWord(); }); }
+  else { bgm(WORLDS[world].song); say(t('appear', { n: name(), hp: s.hp })); nextWord(); }
 }
 function hit() {
   const s = S(), crit = !spell && clean && (now() - wordStart) / 1000 < limit / 2;
@@ -668,7 +730,7 @@ function hit() {
   if (s.boss && !raged && hp <= s.rage.at) {
     raged = true; rageWords = 0; SCENES[s.scene](true); fx.shake = now();
     setTimeout(() => sfx('boss'), 150); say(t('rage', { n: name() })); spell = false; renderWord();
-    return pause(1200, nextWord);
+    return pause(1200, () => { bgm('boss', 1.2); nextWord(); }); // the boss theme speeds up
   }
   pause(crit ? 100 : 60, nextWord); // short hit-stop so the blow lands
 }
@@ -691,7 +753,7 @@ function hurt() {
   nextWord();
 }
 function end(win) {
-  playing = running = false; pausedAt = 0;
+  playing = running = false; pausedAt = 0; bgm('');
   const tt = (now() - t0 - pausedTotal) / 1000;
   $('time').textContent = tt.toFixed(1);
   $('input').disabled = true;
